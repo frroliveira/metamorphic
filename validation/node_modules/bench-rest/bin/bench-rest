@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+
+/*
+  Command line runner for running bench-rest flows
+
+  # run 1000 iterations with 10 concurrent users against flow defined in ./flow.js
+  bench-rest -n 1000 -c 10 './flow.js'
+*/
+
+var prog = require('commander');
+var fs = require('fs');
+var path = require('path');
+var ProgressBar = require('progress2');
+var benchrest = require('../'); // require('bench-rest');
+
+var packageJSON = fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8');
+var package = JSON.parse(packageJSON);
+var VERSION = package.version;
+
+prog
+  .version(VERSION)
+  .usage('[options] <flow-js-path-or-GET-URL>')
+  .option('-n --iterations <integer>', 'Number of iterations to run, defaults to 1')
+  .option('-a --prealloc <integer>', 'Max iterations to preallocate, defaults 100000')
+  .option('-c --concurrency <integer>', 'Concurrent operations, defaults to 10')
+  .option('-d --progress <integer>', 'Display progress bar (> 0), update every N ms, defaults 1000')
+  .option('-u --user <username>', 'User for basic authentication, default no auth')
+  .option('-p --password <password>', 'Password for basic authentication')
+  .option('-e --evaluate <flow-string>', 'Evaluate flow from string, not file')
+  .parse(process.argv);
+
+var execName = prog._name;
+
+prog.on('--help', function () {
+  console.log('  Examples:');
+  console.log('');
+  console.log('    %s -n 100 -c 100 ./examples/simple.js', execName);
+  console.log('    %s -n 100 -c 100 -u "joe" -p "secret" /foo/flow.js', execName);
+  console.log('    %s -n 10 -c 2 http://localhost:8000/', execName);
+  console.log('    %s -n 10 -c 2 -e "{ head: \'http://localhost:8000/\' }"', execName);
+  console.log('');
+});
+
+process.on('SIGINT', function () {
+  console.log('\nUser interrupt: exiting...');
+  process.exit(100);
+});
+
+var flow;
+
+if (prog.evaluate) { // evaluate option specified
+  if (prog.args.length !== 0) { // if using evaluate then no file is specified
+    console.error('when using evaluate option no file must be specified');
+    process.exit(1);
+  }
+  var strFlow = prog.evaluate.trim();
+  if (!/^(\{|\[|'|")/.test(strFlow)) strFlow = '"' + strFlow + '"'; // if raw str, wrap
+  try {
+    eval('flow = ' + strFlow);
+  } catch (err) {
+    console.error('failed to evaluate flow str: ', strFlow, err);
+    process.exit(2);
+  }
+} else { // normal, not evaluate
+  if (prog.args.length !== 1) { // should only specify one file
+    process.stdout.write(prog.helpInformation());
+    prog.emit('--help');
+    process.exit(3);
+  }
+}
+
+var iterations = parseInt(prog.iterations || '1', 10);
+var prealloc = parseInt(prog.prealloc || '100000', 10)
+var concurrency = parseInt(prog.concurrency || '10', 10);
+if (iterations < concurrency) concurrency = iterations;  // just so displays nicely
+var user = prog.user;
+var password = prog.password;
+var progress = parseInt(prog.progress || 1000);
+
+var flowFromMsg;
+if (!flow) {
+  var flowJSPathOrGetURL  = prog.args.shift().trim();
+  if (/^http/.test(flowJSPathOrGetURL)) flow = flowJSPathOrGetURL; // specify flow as just GET str
+
+  if (!flow) {
+    var absPathFlowJS = path.resolve(flowJSPathOrGetURL);
+    if (!fs.existsSync(flowJSPathOrGetURL)) {
+      console.error('Flow JS path does not exist, path: %s', flowJSPathOrGetURL);
+      process.exit(4);
+    }
+    flow = require(absPathFlowJS);
+    flowFromMsg = 'Using flow from: ' + absPathFlowJS;
+  }
+}
+
+
+
+var msg = 'Benchmarking ' + iterations + ' iteration(s) using up to ' +
+  concurrency + ' concurrent connections';
+if (user) {
+  msg += ' using basic auth user ';
+  msg += user;
+}
+console.log(msg);
+if (flowFromMsg) console.log('\n%s\n', flowFromMsg, flow);
+else console.log('\nflow: ', flow);
+
+var runOptions = {
+  limit: concurrency,
+  iterations: iterations,
+  prealloc: prealloc,
+  user: user,
+  password: password,
+  progress: progress
+};
+
+
+var barOptions = {
+  complete: '=',
+  incomplete: ' ',
+  width: 40,
+  total: 100
+};
+var bar = (progress) ? new ProgressBar('Progress [:bar] :percent :etas conc::concurrent :ips/s', barOptions) : null;
+var percentDone = 0;
+
+function updateBar(percentNow, concurrent, ips) {
+  if (!bar || percentNow <= percentDone) return; // if same or less return
+  var inc = percentNow - percentDone;
+  var tokens = { concurrent: concurrent, ips: ips };
+  bar.tick(inc, tokens);
+  percentDone = percentNow;
+}
+
+benchrest(flow, runOptions)
+  .on('error', function (err, ctxName) { console.error('\nFailed in %s, err: ', ctxName, err); })
+  .on('progress', function (stats, percent, concurrent, ips) { // only if progress enabled
+    updateBar(percent, concurrent, ips);
+  })
+  .on('end', function (stats, errorCount) {
+    updateBar(100, 0, (stats.main) ? Math.round(stats.main.meter.mean) : 0);
+    console.log('\n\nerrors: ', errorCount);
+    console.log('stats: ', stats);
+    process.exit(errorCount);
+  });
+
+
+
+
+
+
+

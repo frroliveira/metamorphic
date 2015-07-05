@@ -1,0 +1,57 @@
+#!/bin/sh
+# Calls a sbt command on each of the specified projects.
+# Defaults to all.
+
+metamorphic() {
+  cd metamorphic
+  sbt $1
+  cd ..
+}
+
+slick() {
+  cd metamorphic-slick
+  sbt $1
+  cd h2
+  sbt $1
+  cd ../sqlite
+  sbt $1
+  cd ../postgres
+  sbt $1
+  cd ../..
+}
+
+slick3() {
+  cd metamorphic-slick-3
+  sbt $1
+  cd h2
+  sbt $1
+  cd ../sqlite
+  sbt $1
+  cd ../postgres
+  sbt $1
+  cd ../..
+}
+
+spray() {
+  cd metamorphic-spray
+  sbt $1
+  cd ..
+}
+
+
+if [ $# = 0 ]; then
+  echo 'usage: ./do <command> [project]'
+elif [ $# = 1 ]; then
+  metamorphic $1
+  slick $1
+  slick3 $1
+  spray $1
+elif [ $2 = 'metamorphic' ]; then
+  metamorphic $1
+elif [ $2 = 'slick' ]; then
+  slick $1
+elif [ $2 = 'spray' ]; then
+  spray $1
+elif [ $2 = 'slick3' ]; then
+  slick3 $1
+fi
