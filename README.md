@@ -1,4 +1,4 @@
-<img src="http://176.111.107.16/assets/logo-horizontal.png" width="300px">
+<img src="http://frroliveira.github.io/images/metamorphic.png" width="300px">
 
 Metamorphic is a Scala framework that enables generation of model-driven REST services through the use of a DSL. These services implement CRUD operations on model entities, that can be one of the following: `GetAll`, `Create`, `Get`, `Replace`, and `Delete`. Services can be **synchronous** or **asynchronous**.
 
