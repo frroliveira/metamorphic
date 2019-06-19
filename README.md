@@ -10,6 +10,8 @@ For syntax simplicity should be used *synchronous* implementations, while for pe
 
 # Getting Started
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/58b9443bd3f74627acdb770f5b37c8a1)](https://www.codacy.com/app/filipeoliveirr/metamorphic?utm_source=github.com&utm_medium=referral&utm_content=frroliveira/metamorphic&utm_campaign=badger)
+
 The framework will be deployed to Maven Central Repository in the future. Meanwhile you can clone this repository: 
 
 ```
